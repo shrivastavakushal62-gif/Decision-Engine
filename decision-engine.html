@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Decision Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #050810;
+  --bg2: #080d1a;
+  --bg3: #0c1225;
+  --surface: rgba(255,255,255,0.03);
+  --surface2: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.07);
+  --border-glow: rgba(80,160,255,0.3);
+  --accent: #3d8ef8;
+  --accent2: #5ba3ff;
+  --accent-dim: rgba(61,142,248,0.15);
+  --danger: #f85c5c;
+  --danger-dim: rgba(248,92,92,0.15);
+  --success: #4ecf8a;
+  --success-dim: rgba(78,207,138,0.15);
+  --warn: #f8b84e;
+  --warn-dim: rgba(248,184,78,0.15);
+  --text: #e8eaf2;
+  --text2: #8b91a8;
+  --text3: #4a5068;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Animated background */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.12;
+  animation: orb-drift 20s ease-in-out infinite alternate;
+}
+.bg-orb:nth-child(1) { width: 600px; height: 600px; background: #1a4aff; top: -200px; left: -100px; animation-duration: 22s; }
+.bg-orb:nth-child(2) { width: 400px; height: 400px; background: #0d2db5; bottom: -100px; right: -100px; animation-duration: 18s; animation-delay: -6s; }
+.bg-orb:nth-child(3) { width: 300px; height: 300px; background: #0a1f8c; top: 40%; left: 60%; animation-duration: 25s; animation-delay: -10s; }
+
+@keyframes orb-drift {
+  0%   { transform: translate(0,0) scale(1); }
+  50%  { transform: translate(40px,30px) scale(1.1); }
+  100% { transform: translate(-20px,50px) scale(0.95); }
+}
+
+/* Grid lines */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Layout */
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* Header */
+header {
+  padding: 48px 0 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+.logo-mark {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--accent);
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #fff 0%, #8ba8d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+header p {
+  color: var(--text2);
+  font-size: 0.95rem;
+  max-width: 440px;
+  line-height: 1.6;
+}
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  backdrop-filter: blur(12px);
+  transition: border-color 0.3s;
+}
+.card:hover { border-color: rgba(255,255,255,0.1); }
+
+/* Input Section */
+.input-section { margin-bottom: 20px; }
+
+.field-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.input-wrap {
+  position: relative;
+}
+
+input[type="text"] {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 14px 18px;
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+}
+input[type="text"]::placeholder { color: var(--text3); }
+input[type="text"]:focus {
+  border-color: var(--border-glow);
+  box-shadow: 0 0 0 3px rgba(61,142,248,0.1), inset 0 0 20px rgba(61,142,248,0.03);
+  background: rgba(61,142,248,0.04);
+}
+
+.decision-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (max-width: 580px) {
+  .decision-row { grid-template-columns: 1fr; }
+}
+
+.option-field { position: relative; }
+.option-tag {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.option-tag.a { background: rgba(61,142,248,0.15); color: var(--accent2); }
+.option-tag.b { background: rgba(248,92,92,0.15); color: var(--danger); }
+#optionA { padding-right: 52px; }
+#optionB { padding-right: 52px; }
+
+.analyze-btn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, #1a5cff, #3d8ef8);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow: 0 4px 24px rgba(61,142,248,0.25);
+}
+.analyze-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.analyze-btn:hover::before { opacity: 1; }
+.analyze-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(61,142,248,0.35); }
+.analyze-btn:active { transform: translateY(0); }
+.analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* Loading */
+.loader {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 0;
+}
+.loader.active { display: flex; }
+.loader-ring {
+  width: 48px; height: 48px;
+  border: 2px solid rgba(61,142,248,0.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--text2);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{ opacity:0.4; } 50%{ opacity:1; } }
+
+/* Results */
+.results { display: none; animation: fadeUp 0.5s ease; }
+.results.active { display: block; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Comparison header */
+.comparison-header {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.opt-label {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: 10px;
+  text-align: center;
+}
+.opt-label.a { background: rgba(61,142,248,0.1); border: 1px solid rgba(61,142,248,0.2); color: var(--accent2); }
+.opt-label.b { background: rgba(248,92,92,0.1); border: 1px solid rgba(248,92,92,0.2); color: var(--danger); }
+.vs-badge {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+}
+
+/* Timeline */
+.timelines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 700px) {
+  .timelines { grid-template-columns: 1fr; }
+  .comparison-header { grid-template-columns: 1fr 1fr; }
+  .vs-badge { display: none; }
+}
+
+.timeline-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.timeline-card.a { border-color: rgba(61,142,248,0.12); }
+.timeline-card.b { border-color: rgba(248,92,92,0.12); }
+
+.timeline-step {
+  position: relative;
+  padding-left: 20px;
+}
+.timeline-step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.timeline-card.b .timeline-step::before { background: var(--danger); }
+.timeline-step::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 14px;
+  bottom: -9px;
+  width: 1px;
+  background: var(--border);
+}
+.timeline-step:last-child::after { display: none; }
+.step-time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 3px;
+}
+.step-text { font-size: 0.82rem; line-height: 1.5; color: var(--text2); }
+.impact-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.impact-tag.pos { background: var(--success-dim); color: var(--success); }
+.impact-tag.neg { background: var(--danger-dim); color: var(--danger); }
+.impact-tag.neu { background: var(--warn-dim); color: var(--warn); }
+
+/* Scores */
+.scores-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 500px) { .scores-grid { grid-template-columns: 1fr; } }
+
+.score-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+}
+.score-card h3 {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 14px;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.score-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text3);
+  min-width: 80px;
+  letter-spacing: 0.05em;
+}
+.score-bar-wrap {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.score-bar {
+  height: 100%;
+  border-radius: 99px;
+  width: 0;
+  transition: width 0.8s cubic-bezier(0.23,1,0.32,1);
+}
+.score-card.a .score-bar { background: linear-gradient(90deg, #1a5cff, #5ba3ff); }
+.score-card.b .score-bar { background: linear-gradient(90deg, #c72b2b, #f85c5c); }
+.score-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text2);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Verdict */
+.verdict-card {
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 0 40px rgba(61,142,248,0.06);
+}
+@media (max-width: 480px) { .verdict-card { flex-direction: column; gap: 12px; } }
+.verdict-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.verdict-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.verdict-choice {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.verdict-reason {
+  font-size: 0.85rem;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+/* Reality Check */
+.reality-card {
+  background: rgba(18,22,42,0.8);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.reality-card .section-title { margin-bottom: 14px; }
+.reality-text {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text2);
+  border-left: 2px solid var(--accent);
+  padding-left: 16px;
+}
+
+/* History */
+.history-section { margin-top: 40px; }
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.history-item:hover {
+  border-color: var(--border-glow);
+  background: rgba(61,142,248,0.04);
+}
+.history-question {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-vs {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+.history-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text3);
+}
+.empty-state svg { opacity: 0.3; margin-bottom: 12px; }
+.empty-state p { font-size: 0.85rem; }
+
+/* Utility */
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="bg-canvas">
+  <div class="bg-orb"></div>
+  <div class="bg-orb"></div>
+  <div class="bg-orb"></div>
+</div>
+<div class="bg-grid"></div>
+
+<div class="app">
+
+  <header>
+    <span class="logo-mark">// Decision Engine v1.0</span>
+    <h1>Simulate Your Choices.<br>See What They Cost.</h1>
+    <p>Enter a decision and two options. Get a rigorous timeline simulation of real-world consequences.</p>
+  </header>
+
+  <!-- Input -->
+  <div class="card input-section">
+    <label class="field-label" for="decisionInput">What decision are you facing?</label>
+    <div class="input-wrap">
+      <input type="text" id="decisionInput" placeholder="e.g. Study tonight vs. watch reels" maxlength="120">
+    </div>
+
+    <div class="decision-row">
+      <div class="option-field">
+        <label class="field-label" for="optionA">Option A</label>
+        <input type="text" id="optionA" placeholder="e.g. Study for exam" maxlength="80">
+        <span class="option-tag a">A</span>
+      </div>
+      <div class="option-field">
+        <label class="field-label" for="optionB">Option B</label>
+        <input type="text" id="optionB" placeholder="e.g. Watch reels" maxlength="80">
+        <span class="option-tag b">B</span>
+      </div>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">Analyze Outcome →</button>
+  </div>
+
+  <!-- Loader -->
+  <div class="loader" id="loader">
+    <div class="loader-ring"></div>
+    <span class="loader-text">RUNNING SIMULATION...</span>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <div class="section-title">Outcome Comparison</div>
+
+    <div class="comparison-header">
+      <div class="opt-label a" id="labelA">Option A</div>
+      <div class="vs-badge">VS</div>
+      <div class="opt-label b" id="labelB">Option B</div>
+    </div>
+
+    <!-- Timelines -->
+    <div class="timelines">
+      <div class="timeline-card a" id="timelineA"></div>
+      <div class="timeline-card b" id="timelineB"></div>
+    </div>
+
+    <!-- Scores -->
+    <div class="section-title">Impact Scores</div>
+    <div class="scores-grid">
+      <div class="score-card a" id="scoresA">
+        <h3 id="scoresALabel">Option A</h3>
+      </div>
+      <div class="score-card b" id="scoresB">
+        <h3 id="scoresBLabel">Option B</h3>
+      </div>
+    </div>
+
+    <!-- Verdict -->
+    <div class="section-title">Analysis Verdict</div>
+    <div class="verdict-card" id="verdict">
+      <div class="verdict-icon" id="verdictIcon">⚖️</div>
+      <div>
+        <div class="verdict-label">RECOMMENDED CHOICE</div>
+        <div class="verdict-choice" id="verdictChoice"></div>
+        <div class="verdict-reason" id="verdictReason"></div>
+      </div>
+    </div>
+
+    <!-- Reality Check -->
+    <div class="reality-card">
+      <div class="section-title">Reality Feedback</div>
+      <div class="reality-text" id="realityText"></div>
+    </div>
+
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <div class="section-title">Previous Decisions</div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  KEYWORD DICTIONARIES
+// ─────────────────────────────────────────────
+const PRODUCTIVE_KEYWORDS = [
+  'study','learn','read','code','work','exercise','gym','meditate','sleep','practice',
+  'write','plan','review','research','prepare','focus','train','build','create','skill',
+  'course','book','project','analyze','develop','improve','health','run','walk','cook',
+  'journal','save','invest','job','career','meeting','class','attend','complete'
+];
+const DISTRACTION_KEYWORDS = [
+  'reel','tiktok','scroll','netflix','movie','game','games','play','party','drink',
+  'smoke','procrastinate','sleep','skip','ignore','avoid','waste','browse','social',
+  'instagram','youtube','tv','serie','series','nap','hang','chill','snack','snacks','gamble'
+];
+const SLEEP_KEYWORDS = ['sleep','nap','rest','bed'];
+const HEALTH_KEYWORDS = ['gym','exercise','run','walk','yoga','meditate','cook','healthy'];
+
+function classify(text) {
+  const t = text.toLowerCase();
+  const isProductve = PRODUCTIVE_KEYWORDS.some(k => t.includes(k));
+  const isDistract   = DISTRACTION_KEYWORDS.some(k => t.includes(k));
+  const isSleep      = SLEEP_KEYWORDS.some(k => t.includes(k));
+  const isHealth     = HEALTH_KEYWORDS.some(k => t.includes(k));
+  if (isSleep)  return 'sleep';
+  if (isHealth) return 'health';
+  if (isProductve && !isDistract) return 'productive';
+  if (isDistract && !isProductve) return 'distraction';
+  return 'neutral';
+}
+
+// ─────────────────────────────────────────────
+//  TIMELINE TEMPLATES
+// ─────────────────────────────────────────────
+const TIMELINES = {
+  productive: [
+    { time: '1 Hour',  text: 'Initial resistance fades. Your focus sharpens and you enter a productive state.',  impact: 'pos' },
+    { time: '1 Day',   text: 'You feel accomplished. The work is visible and your confidence rises.',             impact: 'pos' },
+    { time: '1 Week',  text: 'Consistent effort compounds. Skills and progress are measurable and real.',         impact: 'pos' },
+    { time: '1 Month', text: 'You are ahead of where you were. This habit is now part of your routine.',          impact: 'pos' },
+  ],
+  distraction: [
+    { time: '1 Hour',  text: 'Dopamine spike is immediate but shallow. The session extends longer than planned.', impact: 'neu' },
+    { time: '1 Day',   text: 'A dull background guilt persists. Nothing meaningful was produced.',                impact: 'neg' },
+    { time: '1 Week',  text: 'The pattern reinforces avoidance. Your capacity for deep work erodes gradually.',   impact: 'neg' },
+    { time: '1 Month', text: 'A measurable gap appears between where you are and where you intended to be.',      impact: 'neg' },
+  ],
+  sleep: [
+    { time: '1 Hour',  text: 'Body and mind enter recovery mode. Neural consolidation begins.',                   impact: 'pos' },
+    { time: '1 Day',   text: 'Cognitive function is restored. Decision-making and memory recall improve.',        impact: 'pos' },
+    { time: '1 Week',  text: 'Consistent sleep stabilizes mood and reduces cortisol levels noticeably.',         impact: 'pos' },
+    { time: '1 Month', text: 'Long-term health metrics improve. Productivity in waking hours increases.',         impact: 'pos' },
+  ],
+  health: [
+    { time: '1 Hour',  text: 'Endorphins release. Blood flow increases. Alertness rises above baseline.',        impact: 'pos' },
+    { time: '1 Day',   text: 'Reduced stress response. Your body handled a demand you chose to give it.',        impact: 'pos' },
+    { time: '1 Week',  text: 'Physical adaptation begins. Energy reserves noticeably increase.',                  impact: 'pos' },
+    { time: '1 Month', text: 'Body composition shifts. Baseline energy and focus are durably higher.',            impact: 'pos' },
+  ],
+  neutral: [
+    { time: '1 Hour',  text: 'Immediate outcome is moderate. Neither strongly draining nor energizing.',         impact: 'neu' },
+    { time: '1 Day',   text: 'The impact is minor. Your day adjusts around this without major consequence.',     impact: 'neu' },
+    { time: '1 Week',  text: 'At this frequency the effect remains small. Pattern matters more than single act.',impact: 'neu' },
+    { time: '1 Month', text: 'Repeated choice would normalize as a habit. Context determines long-term cost.',   impact: 'neu' },
+  ],
+};
+
+function scoreFromClass(cls) {
+  const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  const base = {
+    productive:  { focus: rand(72,88), discipline: rand(70,86), productivity: rand(65,85), growth: rand(75,92) },
+    distraction: { focus: rand(15,35), discipline: rand(10,28), productivity: rand(8,25),  growth: rand(5,20)  },
+    sleep:       { focus: rand(60,78), discipline: rand(55,75), productivity: rand(55,72), growth: rand(60,78) },
+    health:      { focus: rand(65,80), discipline: rand(70,85), productivity: rand(62,78), growth: rand(68,84) },
+    neutral:     { focus: rand(40,60), discipline: rand(35,55), productivity: rand(38,55), growth: rand(38,58) },
+  };
+  return base[cls] || base.neutral;
+}
+
+function buildVerdict(labelA, labelB, classA, classB, scoresA, scoresB) {
+  const totalA = scoresA.focus + scoresA.discipline + scoresA.productivity + scoresA.growth;
+  const totalB = scoresB.focus + scoresB.discipline + scoresB.productivity + scoresB.growth;
+  const winner = totalA >= totalB ? 'A' : 'B';
+  const winLabel = winner === 'A' ? labelA : labelB;
+  const losLabel = winner === 'A' ? labelB : labelA;
+  const winClass = winner === 'A' ? classA : classB;
+  const losClass = winner === 'A' ? classB : classA;
+
+  const reasons = {
+    productive_vs_distraction: `"${winLabel}" builds real-world progress while "${losLabel}" trades future capacity for momentary ease.`,
+    distraction_vs_productive: `"${winLabel}" has higher long-term return. "${losLabel}" may feel easier now but compounds into a deficit.`,
+    productive_vs_neutral:     `"${winLabel}" generates measurable outcomes. "${losLabel}" holds a neutral position with no compounding benefit.`,
+    sleep_vs_distraction:      `"${winLabel}" restores cognitive resources. "${losLabel}" drains them while delivering no lasting return.`,
+    health_vs_distraction:     `"${winLabel}" creates real physiological capital. "${losLabel}" is a net drain on energy and focus reserves.`,
+    default: `"${winLabel}" scores higher across all four impact dimensions. The long-term trajectory favors this choice consistently.`,
+  };
+
+  const key = `${winClass}_vs_${losClass}`;
+  const reason = reasons[key] || reasons.default;
+
+  return { winner, winLabel, reason };
+}
+
+function buildReality(labelA, labelB, classA, classB, verdict) {
+  const templates = {
+    productive_distraction: `"${labelB}" delivers immediate sensory reward but steadily diminishes your capacity for sustained effort. If chosen repeatedly, the long-term cost is not just lost time — it's a reduced ability to tolerate the discomfort that real progress requires. "${labelA}", by contrast, builds tolerance and output simultaneously.`,
+    productive_neutral: `"${labelA}" is the higher-leverage use of this window. "${labelB}" isn't harmful in isolation, but repeated over weeks it adds up to a large block of time with no compounding return. Every hour spent not building is an implicit vote against your future state.`,
+    distraction_distraction: `Both options carry a negative compound effect. Neither builds capacity, skill, or measurable output. If this is a pattern and not an exception, the real decision is whether you want to interrupt the cycle at all. One of these is slightly less costly — act on that.`,
+    distraction_productive: `"${labelB}" drains focus and reinforces avoidance behavior. "${labelA}" demands more from you now and returns more later. The discomfort of choosing "${labelA}" is the mechanism — not the obstacle.`,
+    sleep_distraction: `Sleep is not passive inaction. It is active biological maintenance. "${labelA}" restores the cognitive infrastructure you need to perform. "${labelB}" borrows against tomorrow's functioning to feel okay tonight.`,
+    health_distraction: `"${labelA}" is investment. "${labelB}" is consumption. Bodies and minds operating below their capacity make every subsequent decision slightly worse. Skipping "${labelA}" isn't just a one-time cost.`,
+    default: `The analysis identifies "${verdict.winLabel}" as the higher-return option based on focus, discipline, and long-term growth metrics. The gap between these two choices widens significantly when repeated over weeks.`,
+  };
+
+  const makeKey = (a, b) => {
+    const order = ['productive','health','sleep','neutral','distraction'];
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    if (ia <= ib) return `${a}_${b}`;
+    return `${b}_${a}`;
+  };
+
+  const k = makeKey(classA, classB);
+  return templates[k] || templates.default;
+}
+
+// ─────────────────────────────────────────────
+//  RENDER HELPERS
+// ─────────────────────────────────────────────
+function renderTimeline(el, steps) {
+  el.innerHTML = steps.map(s => `
+    <div class="timeline-step">
+      <div class="step-time">${s.time}</div>
+      <div class="step-text">${s.text}</div>
+      <span class="impact-tag ${s.impact}">${s.impact === 'pos' ? '↑ Positive' : s.impact === 'neg' ? '↓ Negative' : '→ Neutral'}</span>
+    </div>
+  `).join('');
+}
+
+function renderScores(el, scores) {
+  const rows = [
+    { label: 'Focus',        val: scores.focus },
+    { label: 'Discipline',   val: scores.discipline },
+    { label: 'Productivity', val: scores.productivity },
+    { label: 'Growth',       val: scores.growth },
+  ];
+  const existing = el.querySelector('h3');
+  el.innerHTML = '';
+  if (existing) el.appendChild(existing);
+  rows.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'score-row';
+    div.innerHTML = `
+      <span class="score-label">${r.label}</span>
+      <div class="score-bar-wrap"><div class="score-bar" data-val="${r.val}"></div></div>
+      <span class="score-val">${r.val}</span>
+    `;
+    el.appendChild(div);
+  });
+  // Animate bars
+  setTimeout(() => {
+    el.querySelectorAll('.score-bar').forEach(b => {
+      b.style.width = b.dataset.val + '%';
+    });
+  }, 50);
+}
+
+// ─────────────────────────────────────────────
+//  MAIN ANALYZE
+// ─────────────────────────────────────────────
+function analyze() {
+  const decision = document.getElementById('decisionInput').value.trim();
+  const optA     = document.getElementById('optionA').value.trim();
+  const optB     = document.getElementById('optionB').value.trim();
+
+  if (!decision || !optA || !optB) {
+    alert('Please fill in all three fields before analyzing.');
+    return;
+  }
+
+  // Hide results, show loader
+  document.getElementById('results').classList.remove('active');
+  document.getElementById('loader').classList.add('active');
+  document.getElementById('analyzeBtn').disabled = true;
+
+  setTimeout(() => {
+    document.getElementById('loader').classList.remove('active');
+    document.getElementById('analyzeBtn').disabled = false;
+
+    const classA = classify(optA);
+    const classB = classify(optB);
+    const scoresA = scoreFromClass(classA);
+    const scoresB = scoreFromClass(classB);
+    const verdict = buildVerdict(optA, optB, classA, classB, scoresA, scoresB);
+    const reality = buildReality(optA, optB, classA, classB, verdict);
+
+    // Labels
+    document.getElementById('labelA').textContent = optA;
+    document.getElementById('labelB').textContent = optB;
+    document.getElementById('scoresALabel').textContent = optA;
+    document.getElementById('scoresBLabel').textContent = optB;
+
+    // Timelines
+    renderTimeline(document.getElementById('timelineA'), TIMELINES[classA]);
+    renderTimeline(document.getElementById('timelineB'), TIMELINES[classB]);
+
+    // Scores (restore h3 first)
+    const sa = document.getElementById('scoresA');
+    const sb = document.getElementById('scoresB');
+    sa.innerHTML = `<h3>${optA}</h3>`;
+    sb.innerHTML = `<h3>${optB}</h3>`;
+    renderScores(sa, scoresA);
+    renderScores(sb, scoresB);
+
+    // Verdict
+    const icons = { productive:'🎯', distraction:'⚠️', sleep:'💤', health:'💪', neutral:'⚖️' };
+    const wClass = verdict.winner === 'A' ? classA : classB;
+    document.getElementById('verdictIcon').textContent = icons[wClass] || '⚖️';
+    document.getElementById('verdictChoice').textContent = verdict.winLabel;
+    document.getElementById('verdictReason').textContent = verdict.reason;
+
+    // Reality
+    document.getElementById('realityText').textContent = reality;
+
+    // Show results
+    document.getElementById('results').classList.add('active');
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Save to history
+    saveHistory({ decision, optA, optB, classA, classB, verdict: verdict.winLabel, ts: Date.now() });
+    renderHistory();
+
+  }, 1800);
+}
+
+// ─────────────────────────────────────────────
+//  HISTORY
+// ─────────────────────────────────────────────
+function saveHistory(item) {
+  let hist = getHistory();
+  hist.unshift(item);
+  hist = hist.slice(0, 5);
+  localStorage.setItem('de_history', JSON.stringify(hist));
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('de_history')) || []; }
+  catch { return []; }
+}
+
+function renderHistory() {
+  const hist = getHistory();
+  const el = document.getElementById('historyList');
+  if (!hist.length) {
+    el.innerHTML = `<div class="empty-state">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>No decisions analyzed yet</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = hist.map((h, i) => {
+    const d = new Date(h.ts);
+    const ds = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    return `<div class="history-item" onclick="loadHistory(${i})">
+      <span class="history-question">${h.decision}</span>
+      <span class="history-vs">${h.optA} vs ${h.optB}</span>
+      <span class="history-date">${ds}</span>
+    </div>`;
+  }).join('');
+}
+
+function loadHistory(i) {
+  const hist = getHistory();
+  const h = hist[i];
+  if (!h) return;
+  document.getElementById('decisionInput').value = h.decision;
+  document.getElementById('optionA').value = h.optA;
+  document.getElementById('optionB').value = h.optB;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Enter key support
+['decisionInput','optionA','optionB'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') analyze();
+  });
+});
+
+// Init
+renderHistory();
+</script>
+</body>
+</html>
